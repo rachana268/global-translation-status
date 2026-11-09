@@ -600,7 +600,6 @@ html, body {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
-    body { overflow: visible; }
     .dashboard {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -615,50 +614,10 @@ html, body {
     }
     .country-panel {
         grid-row: 1;
-        height: auto;
-        min-height: 0;
+        height: 290px;
+        min-height: 290px;
         padding: 10px;
         border-radius: 12px;
-        overflow: visible;
-    }
-    .mobile-country-toggle {
-        display: none;
-    }
-    .mobile-country-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        margin: 2px 0 0;
-        padding: 11px 12px;
-        border: 1px solid #00D5D5;
-        border-radius: 9px;
-        background: #0D3038;
-        color: #FFFFFF;
-        font-size: 15px;
-        font-weight: 700;
-        text-align: left;
-        cursor: pointer;
-    }
-    .mobile-country-toggle .toggle-chevron {
-        color: #00E5E5;
-        font-size: 18px;
-        transition: transform .18s ease;
-    }
-    .country-panel.list-expanded .mobile-country-toggle .toggle-chevron {
-        transform: rotate(180deg);
-    }
-    .country-panel .search-box { display: none; }
-    .country-panel.list-expanded .search-box { display: block; }
-    .country-panel .country-list {
-        display: none;
-        max-height: 250px;
-        margin-top: 8px;
-        border-top: 1px solid #18303D;
-        padding-top: 6px;
-    }
-    .country-panel.list-expanded .country-list {
-        display: block;
     }
     .panel-heading { font-size: 17px; }
     .panel-subheading { font-size: 12px; margin-bottom: 8px; }
@@ -676,7 +635,7 @@ html, body {
         grid-row: 2;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto minmax(300px, 88vw) auto auto;
+        grid-template-rows: 58px 310px auto auto;
         row-gap: 10px;
         width: 100%;
         height: auto;
@@ -690,10 +649,8 @@ html, body {
         grid-column: 1;
         grid-row: 2;
         width: 100%;
-        height: min(88vw, 430px);
-        min-height: 300px;
-        max-height: 430px;
-        aspect-ratio: 1 / 1;
+        height: 310px;
+        min-height: 310px;
         overflow: hidden;
     }
     #globe { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -923,11 +880,6 @@ html, body {
         <div class="panel-heading">Search by Country</div>
         <div class="panel-subheading">__COUNTRY_COUNT__ countries and territories</div>
 
-        <button id="mobileCountryToggle" class="mobile-country-toggle" type="button" aria-expanded="false">
-            <span id="mobileCountrySelection">Choose a country</span>
-            <span class="toggle-chevron">⌄</span>
-        </button>
-
         <input
             id="countrySearch"
             class="search-box"
@@ -1149,11 +1101,13 @@ function resizeGlobeAfterLayoutChange(force = false) {
         if (!force && Math.abs(width - lastGlobeWidth) < 2 && Math.abs(height - lastGlobeHeight) < 2) return;
         lastGlobeWidth = width;
         lastGlobeHeight = height;
+        const fitScale = Math.min(1, (height / width) * 1.65);
         Plotly.relayout(globe, {
             width: width,
             height: height,
-            "geo.domain.x": [0.03, 0.97],
-            "geo.domain.y": [0.03, 0.97]
+            "geo.domain.x": [0.04, 0.96],
+            "geo.domain.y": [0.04, 0.96],
+            "geo.projection.scale": fitScale
         });
     });
 }
@@ -1172,7 +1126,6 @@ function closeCountryOverview() {
     document.getElementById("infoOverlay").classList.add("open");
     overviewHovered = false;
     document.getElementById("countryName").textContent = "SELECT A COUNTRY";
-    if (mobileCountrySelection) mobileCountrySelection.textContent = "Choose a country";
     selectedCode = null;
     hoveredCode = null;
     document.querySelectorAll(".country-item").forEach(item => item.classList.remove("active"));
@@ -1405,12 +1358,8 @@ function setActiveCountry(code, scrollToItem = false, showOverview = true) {
     }
 
     selectedCode = code;
-    if (mobileCountrySelection) {
-        mobileCountrySelection.textContent = countryByCode[code].name;
-    }
-    if (window.matchMedia("(max-width: 620px)").matches) {
-        setMobileCountryListExpanded(false);
-    }
+
+
 
     setCountryInfo(code);
 
@@ -1438,33 +1387,6 @@ document.getElementById("infoOverlay").addEventListener("click", event => {
 document.addEventListener("keydown", event => {
     if (event.key === "Escape") closeCountryOverview();
 });
-
-const countryPanel = document.querySelector(".country-panel");
-const mobileCountryToggle = document.getElementById("mobileCountryToggle");
-const mobileCountrySelection = document.getElementById("mobileCountrySelection");
-
-function setMobileCountryListExpanded(expanded) {
-    if (!countryPanel || !mobileCountryToggle) return;
-    countryPanel.classList.toggle("list-expanded", expanded);
-    mobileCountryToggle.setAttribute("aria-expanded", String(expanded));
-    if (expanded) {
-        document.getElementById("countrySearch").focus();
-    }
-}
-
-mobileCountryToggle.addEventListener("click", () => {
-    const expanded = !countryPanel.classList.contains("list-expanded");
-    setMobileCountryListExpanded(expanded);
-});
-
-document.getElementById("countrySearch").addEventListener(
-    "focus",
-    () => {
-        if (window.matchMedia("(max-width: 620px)").matches) {
-            setMobileCountryListExpanded(true);
-        }
-    }
-);
 
 document.getElementById("countrySearch").addEventListener(
     "input",
@@ -1553,12 +1475,13 @@ const layout = {
     geo: {
         // Keep the sphere slightly inside the plotting area to prevent clipping.
         domain: {
-            x: [0.03, 0.97],
-            y: [0.03, 0.97]
+            x: [0.04, 0.96],
+            y: [0.04, 0.96]
         },
 
         projection: {
             type: "orthographic",
+            scale: 0.95,
             rotation: {
                 lon: 0,
                 lat: 0,
@@ -1615,6 +1538,26 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
     insightTimer = setInterval(() => moveInsight(1), 20000);
 
     // Globe rotation is disabled. The view stays fixed.
+
+    // Let Streamlit's iframe grow to the full stacked mobile dashboard height.
+    // This prevents the country overview and lower chart from being clipped.
+    function notifyStreamlitFrameHeight() {
+        const isPhone = window.matchMedia("(max-width: 620px)").matches;
+        if (!isPhone) return;
+        const contentHeight = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight
+        );
+        window.parent.postMessage({
+            isStreamlitMessage: true,
+            type: "streamlit:setFrameHeight",
+            height: contentHeight + 24
+        }, "*");
+    }
+    requestAnimationFrame(() => requestAnimationFrame(notifyStreamlitFrameHeight));
+    const pageHeightObserver = new ResizeObserver(notifyStreamlitFrameHeight);
+    pageHeightObserver.observe(document.body);
+    window.addEventListener("resize", notifyStreamlitFrameHeight);
 
     // Watch only the wrapper's real dimensions. Do not let Plotly's own redraws
     // trigger another resize, and do not resize the globe on every window event.
@@ -1687,25 +1630,6 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
             setActiveCountry(code, true);
         }
     );
-
-    // Let Streamlit expand the embedded component to the actual mobile content
-    // height, so the country overview and global charts are not clipped.
-    function reportComponentHeight() {
-        const isPhone = window.matchMedia("(max-width: 620px)").matches;
-        const height = isPhone
-            ? Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
-            : 820;
-        window.parent.postMessage({
-            isStreamlitMessage: true,
-            type: "streamlit:setFrameHeight",
-            height: Math.ceil(height + 12)
-        }, "*");
-    }
-
-    reportComponentHeight();
-    const pageHeightObserver = new ResizeObserver(reportComponentHeight);
-    pageHeightObserver.observe(document.body);
-    window.addEventListener("resize", reportComponentHeight);
 })));
 </script>
 
@@ -1729,7 +1653,7 @@ html_code = (
 
 components.html(
     html_code,
-    height=820,
+    height=900,
     scrolling=False
 )
 
