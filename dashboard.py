@@ -600,6 +600,7 @@ html, body {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
+    body { overflow: visible; }
     .dashboard {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -614,10 +615,50 @@ html, body {
     }
     .country-panel {
         grid-row: 1;
-        height: 290px;
-        min-height: 290px;
+        height: auto;
+        min-height: 0;
         padding: 10px;
         border-radius: 12px;
+        overflow: visible;
+    }
+    .mobile-country-toggle {
+        display: none;
+    }
+    .mobile-country-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin: 2px 0 0;
+        padding: 11px 12px;
+        border: 1px solid #00D5D5;
+        border-radius: 9px;
+        background: #0D3038;
+        color: #FFFFFF;
+        font-size: 15px;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+    }
+    .mobile-country-toggle .toggle-chevron {
+        color: #00E5E5;
+        font-size: 18px;
+        transition: transform .18s ease;
+    }
+    .country-panel.list-expanded .mobile-country-toggle .toggle-chevron {
+        transform: rotate(180deg);
+    }
+    .country-panel .search-box { display: none; }
+    .country-panel.list-expanded .search-box { display: block; }
+    .country-panel .country-list {
+        display: none;
+        max-height: 250px;
+        margin-top: 8px;
+        border-top: 1px solid #18303D;
+        padding-top: 6px;
+    }
+    .country-panel.list-expanded .country-list {
+        display: block;
     }
     .panel-heading { font-size: 17px; }
     .panel-subheading { font-size: 12px; margin-bottom: 8px; }
@@ -635,7 +676,7 @@ html, body {
         grid-row: 2;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 58px 310px auto auto;
+        grid-template-rows: auto minmax(300px, 88vw) auto auto;
         row-gap: 10px;
         width: 100%;
         height: auto;
@@ -649,8 +690,10 @@ html, body {
         grid-column: 1;
         grid-row: 2;
         width: 100%;
-        height: 310px;
-        min-height: 310px;
+        height: min(88vw, 430px);
+        min-height: 300px;
+        max-height: 430px;
+        aspect-ratio: 1 / 1;
         overflow: hidden;
     }
     #globe { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -880,6 +923,11 @@ html, body {
         <div class="panel-heading">Search by Country</div>
         <div class="panel-subheading">__COUNTRY_COUNT__ countries and territories</div>
 
+        <button id="mobileCountryToggle" class="mobile-country-toggle" type="button" aria-expanded="false">
+            <span id="mobileCountrySelection">Choose a country</span>
+            <span class="toggle-chevron">⌄</span>
+        </button>
+
         <input
             id="countrySearch"
             class="search-box"
@@ -1104,8 +1152,8 @@ function resizeGlobeAfterLayoutChange(force = false) {
         Plotly.relayout(globe, {
             width: width,
             height: height,
-            "geo.domain.x": [0.08, 0.92],
-            "geo.domain.y": [0.08, 0.92]
+            "geo.domain.x": [0.03, 0.97],
+            "geo.domain.y": [0.03, 0.97]
         });
     });
 }
@@ -1124,6 +1172,7 @@ function closeCountryOverview() {
     document.getElementById("infoOverlay").classList.add("open");
     overviewHovered = false;
     document.getElementById("countryName").textContent = "SELECT A COUNTRY";
+    if (mobileCountrySelection) mobileCountrySelection.textContent = "Choose a country";
     selectedCode = null;
     hoveredCode = null;
     document.querySelectorAll(".country-item").forEach(item => item.classList.remove("active"));
@@ -1356,8 +1405,12 @@ function setActiveCountry(code, scrollToItem = false, showOverview = true) {
     }
 
     selectedCode = code;
-
-
+    if (mobileCountrySelection) {
+        mobileCountrySelection.textContent = countryByCode[code].name;
+    }
+    if (window.matchMedia("(max-width: 620px)").matches) {
+        setMobileCountryListExpanded(false);
+    }
 
     setCountryInfo(code);
 
@@ -1385,6 +1438,33 @@ document.getElementById("infoOverlay").addEventListener("click", event => {
 document.addEventListener("keydown", event => {
     if (event.key === "Escape") closeCountryOverview();
 });
+
+const countryPanel = document.querySelector(".country-panel");
+const mobileCountryToggle = document.getElementById("mobileCountryToggle");
+const mobileCountrySelection = document.getElementById("mobileCountrySelection");
+
+function setMobileCountryListExpanded(expanded) {
+    if (!countryPanel || !mobileCountryToggle) return;
+    countryPanel.classList.toggle("list-expanded", expanded);
+    mobileCountryToggle.setAttribute("aria-expanded", String(expanded));
+    if (expanded) {
+        document.getElementById("countrySearch").focus();
+    }
+}
+
+mobileCountryToggle.addEventListener("click", () => {
+    const expanded = !countryPanel.classList.contains("list-expanded");
+    setMobileCountryListExpanded(expanded);
+});
+
+document.getElementById("countrySearch").addEventListener(
+    "focus",
+    () => {
+        if (window.matchMedia("(max-width: 620px)").matches) {
+            setMobileCountryListExpanded(true);
+        }
+    }
+);
 
 document.getElementById("countrySearch").addEventListener(
     "input",
@@ -1473,8 +1553,8 @@ const layout = {
     geo: {
         // Keep the sphere slightly inside the plotting area to prevent clipping.
         domain: {
-            x: [0.08, 0.92],
-            y: [0.08, 0.92]
+            x: [0.03, 0.97],
+            y: [0.03, 0.97]
         },
 
         projection: {
@@ -1607,6 +1687,25 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
             setActiveCountry(code, true);
         }
     );
+
+    // Let Streamlit expand the embedded component to the actual mobile content
+    // height, so the country overview and global charts are not clipped.
+    function reportComponentHeight() {
+        const isPhone = window.matchMedia("(max-width: 620px)").matches;
+        const height = isPhone
+            ? Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+            : 820;
+        window.parent.postMessage({
+            isStreamlitMessage: true,
+            type: "streamlit:setFrameHeight",
+            height: Math.ceil(height + 12)
+        }, "*");
+    }
+
+    reportComponentHeight();
+    const pageHeightObserver = new ResizeObserver(reportComponentHeight);
+    pageHeightObserver.observe(document.body);
+    window.addEventListener("resize", reportComponentHeight);
 })));
 </script>
 
