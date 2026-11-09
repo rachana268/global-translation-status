@@ -573,31 +573,137 @@ html, body {
     pointer-events: auto;
 }
 
-@media (max-width: 900px) {
-    .dashboard { grid-template-columns: 220px minmax(0, 1fr); gap: 10px; }
+/* Tablet layout: retain the two-column country browser and compact main area. */
+@media (max-width: 900px) and (min-width: 621px) {
+    .dashboard {
+        grid-template-columns: 210px minmax(0, 1fr);
+        gap: 10px;
+    }
     .main-panel {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 64px minmax(280px, 1fr) minmax(220px, .8fr);
-        row-gap: 8px;
+        grid-template-rows: 64px minmax(300px, 1fr) minmax(300px, auto);
+        row-gap: 10px;
     }
-    .main-panel .country-header { grid-row: 1; }
-    .main-panel .globe-wrapper { grid-column: 1; grid-row: 2; }
-    .main-panel .info-overlay.open {
-        grid-column: 1; grid-row: 3; padding: 0; align-items: stretch;
-    }
-    .country-item { font-size: 16px; }
-    .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .main-panel .country-header { grid-column: 1; grid-row: 1; }
+    .main-panel .globe-wrapper { grid-column: 1; grid-row: 2; min-height: 300px; }
+    .main-panel .info-overlay.open { grid-column: 1; grid-row: 3; padding: 0; }
+    .country-item { font-size: 15px; }
+    .info-card { width: 100%; max-height: none; }
 }
 
+/* Phone layout: stack the country browser, globe and overview vertically. */
 @media (max-width: 620px) {
-    .dashboard { grid-template-columns: 150px minmax(0, 1fr); gap: 7px; }
-    .country-panel { padding: 8px; }
-    .panel-heading { font-size: 16px; }
-    .panel-subheading { font-size: 11px; }
-    .country-item { padding: 8px; font-size: 13px; }
-    .country-name { font-size: 19px; }
-    .main-panel { grid-template-rows: 56px minmax(230px, 1fr) minmax(210px, .8fr); }
-    .info-card { padding: 12px; }
+    html, body {
+        height: auto;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .dashboard {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 290px auto;
+        gap: 12px;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
+        padding-bottom: 18px;
+    }
+    .country-panel {
+        grid-row: 1;
+        height: 290px;
+        min-height: 290px;
+        padding: 10px;
+        border-radius: 12px;
+    }
+    .panel-heading { font-size: 17px; }
+    .panel-subheading { font-size: 12px; margin-bottom: 8px; }
+    .search-box { padding: 10px 12px; font-size: 16px; margin-bottom: 8px; }
+    .country-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    .country-item { padding: 9px 10px; margin-bottom: 3px; font-size: 15px; }
+    .main-panel {
+        grid-row: 2;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 58px 310px auto auto;
+        row-gap: 10px;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+    .main-panel .country-header { grid-column: 1; grid-row: 1; min-height: 58px; padding: 8px 12px; margin: 0; }
+    .target-icon { width: 28px; height: 28px; }
+    .country-name { font-size: 18px; }
+    .main-panel .globe-wrapper {
+        grid-column: 1;
+        grid-row: 2;
+        width: 100%;
+        height: 310px;
+        min-height: 310px;
+        overflow: hidden;
+    }
+    #globe { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .main-panel .info-overlay,
+    .main-panel .info-overlay.open {
+        grid-column: 1;
+        grid-row: 3;
+        display: flex;
+        position: relative;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        padding: 0;
+        overflow: visible;
+        align-items: stretch;
+    }
+    .info-card {
+        width: 100%;
+        max-width: none;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        padding: 12px;
+        border-radius: 12px;
+    }
+    .global-overview { height: auto; min-height: 0; }
+    .global-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+    .global-kpi { min-height: 72px; padding: 10px; }
+    .global-kpi-label { font-size: 11px; line-height: 1.3; }
+    .global-kpi-value { font-size: 19px; }
+    .global-panels { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .global-panel { padding: 11px; }
+    .global-panel-title { font-size: 14px; }
+    .need-chart-row { grid-template-columns: minmax(65px, 82px) minmax(0, 1fr) 38px; gap: 6px; font-size: 11px; }
+    .need-chart-value { font-size: 11px; }
+    .insight-shell { min-height: 155px; }
+    .insight-text { font-size: 13px; }
+    .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .info-cell {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        gap: 6px;
+        min-height: 112px;
+        padding: 11px;
+        text-align: left;
+    }
+    .info-icon { grid-column: 1; grid-row: 1; font-size: 25px; }
+    .info-label { font-size: 12px; line-height: 1.3; }
+    .info-value { font-size: 20px; }
+    .status-chart-panel { padding: 10px; }
+    .status-chart-title { font-size: 14px; }
+    .status-chart-legend { font-size: 11px; }
+    .footer-note { font-size: 12px; line-height: 1.45; }
 }
 
 .info-close {
@@ -764,13 +870,6 @@ html, body {
     margin-top: 12px;
 }
 
-@media (max-width: 1000px) {
-    .dashboard { grid-template-columns: 230px minmax(0, 1fr); height: 100%; min-height: 900px; max-height: none; }
-    .info-overlay { padding: 12px 10px 10px; justify-content: flex-end; }
-    .info-card { width: min(560px, 78vw); max-height: 52vh; }
-    .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .country-item { font-size: 16px; }
-}
 </style>
 </head>
 
@@ -1002,7 +1101,12 @@ function resizeGlobeAfterLayoutChange(force = false) {
         if (!force && Math.abs(width - lastGlobeWidth) < 2 && Math.abs(height - lastGlobeHeight) < 2) return;
         lastGlobeWidth = width;
         lastGlobeHeight = height;
-        Plotly.relayout(globe, {width: width, height: height});
+        Plotly.relayout(globe, {
+            width: width,
+            height: height,
+            "geo.domain.x": [0.08, 0.92],
+            "geo.domain.y": [0.08, 0.92]
+        });
     });
 }
 
@@ -1177,6 +1281,7 @@ function updateGlobeHighlight(code) {
 function renderCountryList(filterText = "") {
     const list = document.getElementById("countryList");
     list.innerHTML = "";
+    list.scrollTop = 0;
 
     const filteredCountries = countries.filter(country =>
         country.name.toLowerCase().includes(filterText.toLowerCase())
@@ -1368,8 +1473,8 @@ const layout = {
     geo: {
         // Keep the sphere slightly inside the plotting area to prevent clipping.
         domain: {
-            x: [0.04, 0.96],
-            y: [0.04, 0.96]
+            x: [0.08, 0.92],
+            y: [0.08, 0.92]
         },
 
         projection: {
