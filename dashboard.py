@@ -1654,7 +1654,7 @@ html_code = (
 components.html(
     html_code,
     height=900,
-    scrolling=False
+    scrolling=True
 )
 
 
