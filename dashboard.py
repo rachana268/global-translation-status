@@ -1084,8 +1084,9 @@ let lastGlobeWidth = 0;
 let lastGlobeHeight = 0;
 
 function resizeGlobeAfterLayoutChange(force = false) {
-    // Resize only when the OUTER wrapper has genuinely changed dimensions.
-    // Observing the wrapper avoids feedback from Plotly changing its own SVG size.
+    // Fit the orthographic globe inside a PIXEL-SQUARE geo domain.
+    // Equal x/y fractions are not enough when the Plotly container is rectangular:
+    // they produce an oval globe. Calculate the domain from the real pixel ratio.
     if (globeResizeFrame !== null) cancelAnimationFrame(globeResizeFrame);
     globeResizeFrame = requestAnimationFrame(() => {
         globeResizeFrame = null;
@@ -1097,17 +1098,35 @@ function resizeGlobeAfterLayoutChange(force = false) {
         const height = Math.round(wrapper.clientHeight);
         if (width < 2 || height < 2) return;
 
-        // Ignore tiny 1px layout fluctuations that can cause repeated redraws.
         if (!force && Math.abs(width - lastGlobeWidth) < 2 && Math.abs(height - lastGlobeHeight) < 2) return;
         lastGlobeWidth = width;
         lastGlobeHeight = height;
-        const fitScale = Math.min(1, (height / width) * 1.65);
+
+        const inset = 0.055;
+        const usable = 1 - (inset * 2);
+        let domainX;
+        let domainY;
+
+        if (width >= height) {
+            // Wide container: centre a square geo domain horizontally.
+            const domainWidth = usable * (height / width);
+            const left = (1 - domainWidth) / 2;
+            domainX = [left, left + domainWidth];
+            domainY = [inset, 1 - inset];
+        } else {
+            // Tall container: centre a square geo domain vertically.
+            const domainHeight = usable * (width / height);
+            const bottom = (1 - domainHeight) / 2;
+            domainX = [inset, 1 - inset];
+            domainY = [bottom, bottom + domainHeight];
+        }
+
         Plotly.relayout(globe, {
             width: width,
             height: height,
-            "geo.domain.x": [0.04, 0.96],
-            "geo.domain.y": [0.04, 0.96],
-            "geo.projection.scale": fitScale
+            "geo.domain.x": domainX,
+            "geo.domain.y": domainY,
+            "geo.projection.scale": 0.94
         });
     });
 }
@@ -1377,6 +1396,8 @@ function setActiveCountry(code, scrollToItem = false, showOverview = true) {
 
     updateGlobeHighlight(code);
     rotateCountryToFront(code);
+    // Country selection can change surrounding layout; preserve the circular globe.
+    resizeGlobeAfterLayoutChange(true);
     if (showOverview) openCountryOverview();
 }
 
@@ -1481,7 +1502,7 @@ const layout = {
 
         projection: {
             type: "orthographic",
-            scale: 0.95,
+            scale: 0.94,
             rotation: {
                 lon: 0,
                 lat: 0,
@@ -1538,6 +1559,8 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
     insightTimer = setInterval(() => moveInsight(1), 20000);
 
     // Globe rotation is disabled. The view stays fixed.
+    // Apply a pixel-square geo domain once the Plotly graph is fully initialized.
+    resizeGlobeAfterLayoutChange(true);
 
     // Let Streamlit's iframe grow to the full stacked mobile dashboard height.
     // This prevents the country overview and lower chart from being clipped.
