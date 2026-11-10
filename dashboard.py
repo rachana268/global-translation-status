@@ -531,7 +531,7 @@ html, body {
     height: 100%;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     isolation: isolate;
 }
 
@@ -1084,9 +1084,8 @@ let lastGlobeWidth = 0;
 let lastGlobeHeight = 0;
 
 function resizeGlobeAfterLayoutChange(force = false) {
-    // Fit the orthographic globe inside a PIXEL-SQUARE geo domain.
-    // Equal x/y fractions are not enough when the Plotly container is rectangular:
-    // they produce an oval globe. Calculate the domain from the real pixel ratio.
+    // Resize only when the OUTER wrapper has genuinely changed dimensions.
+    // Observing the wrapper avoids feedback from Plotly changing its own SVG size.
     if (globeResizeFrame !== null) cancelAnimationFrame(globeResizeFrame);
     globeResizeFrame = requestAnimationFrame(() => {
         globeResizeFrame = null;
@@ -1098,35 +1097,15 @@ function resizeGlobeAfterLayoutChange(force = false) {
         const height = Math.round(wrapper.clientHeight);
         if (width < 2 || height < 2) return;
 
+        // Ignore tiny 1px layout fluctuations that can cause repeated redraws.
         if (!force && Math.abs(width - lastGlobeWidth) < 2 && Math.abs(height - lastGlobeHeight) < 2) return;
         lastGlobeWidth = width;
         lastGlobeHeight = height;
-
-        const inset = 0.055;
-        const usable = 1 - (inset * 2);
-        let domainX;
-        let domainY;
-
-        if (width >= height) {
-            // Wide container: centre a square geo domain horizontally.
-            const domainWidth = usable * (height / width);
-            const left = (1 - domainWidth) / 2;
-            domainX = [left, left + domainWidth];
-            domainY = [inset, 1 - inset];
-        } else {
-            // Tall container: centre a square geo domain vertically.
-            const domainHeight = usable * (width / height);
-            const bottom = (1 - domainHeight) / 2;
-            domainX = [inset, 1 - inset];
-            domainY = [bottom, bottom + domainHeight];
-        }
-
         Plotly.relayout(globe, {
             width: width,
             height: height,
-            "geo.domain.x": domainX,
-            "geo.domain.y": domainY,
-            "geo.projection.scale": 0.94
+            "geo.domain.x": [0.08, 0.92],
+            "geo.domain.y": [0.08, 0.92]
         });
     });
 }
@@ -1340,7 +1319,6 @@ function renderCountryList(filterText = "") {
             } else if (!overviewHovered) {
                 closeCountryOverview();
                 document.getElementById("countryName").textContent = "SELECT A COUNTRY";
-                document.getElementById("christianityPercent").textContent = "—";
             }
 
             document.querySelectorAll(".country-item").forEach(otherItem => {
@@ -1370,7 +1348,6 @@ function setActiveCountry(code, scrollToItem = false, showOverview = true) {
         hoveredCode = null;
         closeCountryOverview();
         document.getElementById("countryName").textContent = "SELECT A COUNTRY";
-        document.getElementById("christianityPercent").textContent = "—";
         document.querySelectorAll(".country-item").forEach(item => item.classList.remove("active"));
         updateGlobeHighlight(null);
         return;
@@ -1396,8 +1373,6 @@ function setActiveCountry(code, scrollToItem = false, showOverview = true) {
 
     updateGlobeHighlight(code);
     rotateCountryToFront(code);
-    // Country selection can change surrounding layout; preserve the circular globe.
-    resizeGlobeAfterLayoutChange(true);
     if (showOverview) openCountryOverview();
 }
 
@@ -1435,7 +1410,7 @@ function rotateCountryToFront(code) {
     // height, or the globe wrapper dimensions during country selection.
     Plotly.relayout(globe, {
         "geo.projection.rotation.lon": center.lon,
-        "geo.projection.rotation.lat": center.lat,
+        "geo.projection.rotation.lat": 0,
         "geo.projection.rotation.roll": 0
     }).catch(error => {
         console.error("Could not rotate globe to selected country:", error);
@@ -1495,14 +1470,10 @@ const layout = {
 
     geo: {
         // Keep the sphere slightly inside the plotting area to prevent clipping.
-        domain: {
-            x: [0.04, 0.96],
-            y: [0.04, 0.96]
-        },
-
+        
         projection: {
             type: "orthographic",
-            scale: 0.94,
+            scale: 0.5,
             rotation: {
                 lon: 0,
                 lat: 0,
@@ -1529,27 +1500,78 @@ const layout = {
     }
 };
 
-// Wait for Streamlit's iframe and CSS grid to finish their first layout pass.
-// Give Plotly explicit dimensions so autosize does not oscillate during startup.
-const globeWrapper = document.querySelector(".globe-wrapper");
-const initialGlobeWidth = Math.max(320, Math.round(globeWrapper?.clientWidth || 800));
-const initialGlobeHeight = Math.max(320, Math.round(globeWrapper?.clientHeight || 650));
-layout.autosize = false;
-layout.width = initialGlobeWidth;
-layout.height = initialGlobeHeight;
-lastGlobeWidth = initialGlobeWidth;
-lastGlobeHeight = initialGlobeHeight;
+// Wait until the globe wrapper has its real layout dimensions before creating Plotly.
+// The earlier double-requestAnimationFrame approach ran too soon and measured
+// the wrapper at 2px wide. Require a usable size that remains stable for 3 frames.
+function waitForStableGlobeSize() {
+    return new Promise(resolve => {
+        const wrapper = document.querySelector(".globe-wrapper");
+        let previousWidth = 0;
+        let previousHeight = 0;
+        let stableFrames = 0;
 
-requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
-    "globe",
-    [trace],
-    layout,
-    {
-        displayModeBar: true,
-        scrollZoom: true,
-        responsive: false
-    }
-).then(() => {
+        const observer = new ResizeObserver(() => {
+            // The observer wakes the measurement loop when the CSS grid changes.
+        });
+        observer.observe(wrapper);
+
+        function checkSize() {
+            const rect = wrapper.getBoundingClientRect();
+            const width = Math.round(rect.width);
+            const height = Math.round(rect.height);
+
+            if (width >= 100 && height >= 100) {
+                if (
+                    Math.abs(width - previousWidth) <= 1 &&
+                    Math.abs(height - previousHeight) <= 1
+                ) {
+                    stableFrames += 1;
+                } else {
+                    stableFrames = 0;
+                }
+
+                previousWidth = width;
+                previousHeight = height;
+
+                if (stableFrames >= 3) {
+                    observer.disconnect();
+                    resolve({ width, height });
+                    return;
+                }
+            } else {
+                stableFrames = 0;
+                previousWidth = width;
+                previousHeight = height;
+            }
+
+            requestAnimationFrame(checkSize);
+        }
+
+        requestAnimationFrame(checkSize);
+    });
+}
+
+const globeWrapper = document.querySelector(".globe-wrapper");
+
+waitForStableGlobeSize().then(({ width, height }) => {
+    // Explicitly initialize Plotly at the wrapper's final measured dimensions.
+    layout.autosize = false;
+    layout.width = width;
+    layout.height = height;
+
+    console.log("Initializing Plotly globe at stable wrapper size:", width, height);
+
+    Plotly.newPlot(
+        "globe",
+        [trace],
+        layout,
+        {
+            displayModeBar: true,
+            scrollZoom: true,
+            responsive: false
+        }
+    ).then(() => {
+
     renderCountryList();
     renderGlobalOverview();
     document.querySelector(".info-card").classList.add("global-mode");
@@ -1559,8 +1581,6 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
     insightTimer = setInterval(() => moveInsight(1), 20000);
 
     // Globe rotation is disabled. The view stays fixed.
-    // Apply a pixel-square geo domain once the Plotly graph is fully initialized.
-    resizeGlobeAfterLayoutChange(true);
 
     // Let Streamlit's iframe grow to the full stacked mobile dashboard height.
     // This prevents the country overview and lower chart from being clipped.
@@ -1582,17 +1602,40 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
     pageHeightObserver.observe(document.body);
     window.addEventListener("resize", notifyStreamlitFrameHeight);
 
-    // Watch only the wrapper's real dimensions. Do not let Plotly's own redraws
-    // trigger another resize, and do not resize the globe on every window event.
-    const globeWrapperObserver = new ResizeObserver(() => {
-        resizeGlobeAfterLayoutChange(false);
+    // Keep Plotly synchronized with the globe wrapper itself. This also catches
+    // CSS-grid changes that do not produce a window resize event.
+    let lastAppliedGlobeWidth = width;
+    let lastAppliedGlobeHeight = height;
+    let globeResizeFrame = null;
+
+    const globeDimensionObserver = new ResizeObserver(() => {
+        if (globeResizeFrame !== null) cancelAnimationFrame(globeResizeFrame);
+        globeResizeFrame = requestAnimationFrame(() => {
+            globeResizeFrame = null;
+            const wrapper = document.querySelector(".globe-wrapper");
+            const globe = document.getElementById("globe");
+            if (!wrapper || !globe || !globe.data || !globe.data.length) return;
+
+            const rect = wrapper.getBoundingClientRect();
+            const nextWidth = Math.round(rect.width);
+            const nextHeight = Math.round(rect.height);
+            if (nextWidth < 100 || nextHeight < 100) return;
+
+            if (
+                Math.abs(nextWidth - lastAppliedGlobeWidth) > 1 ||
+                Math.abs(nextHeight - lastAppliedGlobeHeight) > 1
+            ) {
+                lastAppliedGlobeWidth = nextWidth;
+                lastAppliedGlobeHeight = nextHeight;
+                Plotly.relayout(globe, { width: nextWidth, height: nextHeight });
+            }
+        });
     });
-    globeWrapperObserver.observe(document.querySelector(".globe-wrapper"));
+    globeDimensionObserver.observe(globeWrapper);
 
     window.addEventListener("resize", () => {
         const code = selectedCode || hoveredCode || (countries.length ? countries[0].iso3 : null);
         if (code) renderStatusChart(code);
-        resizeGlobeAfterLayoutChange(false);
     });
 
     document.getElementById("globe").on(
@@ -1628,7 +1671,6 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
 } else if (!overviewHovered) {
                 closeCountryOverview();
                 document.getElementById("countryName").textContent = "SELECT A COUNTRY";
-                document.getElementById("christianityPercent").textContent = "—";
             }
 
             document.querySelectorAll(".country-item").forEach(item => {
@@ -1653,7 +1695,8 @@ requestAnimationFrame(() => requestAnimationFrame(() => Plotly.newPlot(
             setActiveCountry(code, true);
         }
     );
-})));
+    });
+});
 </script>
 
 </body>
