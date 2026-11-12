@@ -590,6 +590,20 @@ country_centers_json = json.dumps(
     ensure_ascii=False
 ).replace("</", "<\\/")
 
+# Global population must include ALL CSV countries, not only GeoJSON matches.
+# Keep globe records restricted to matched countries for map rendering.
+all_population_column = next(
+    (col for col in ["Population", "PopulationTotal", "Population2024", "Population2025"]
+     if col in country_df.columns),
+    None
+)
+global_population_total = int(
+    pd.to_numeric(
+        country_df[all_population_column].astype(str).str.replace(",", "", regex=False),
+        errors="coerce"
+    ).fillna(0).sum()
+) if all_population_column else 0
+
 country_count = len(country_records)
 
 
@@ -1977,7 +1991,7 @@ function formatMetric(value) {
 }
 
 function renderGlobalOverview() {
-    const populationSum = countries.reduce((sum, country) => sum + (parseMetric(country.population) || 0), 0);
+    const populationSum = __GLOBAL_POPULATION_TOTAL__;
     const languageSum = countries.reduce((sum, country) => sum + (parseMetric(country.language_count) || 0), 0);
     const peopleGroupSum = countries.reduce((sum, country) => sum + (parseMetric(country.people_groups) || 0), 0);
     const translationNeedSum = countries.reduce((sum, country) => sum + (parseMetric(country.translation_needed) || 0), 0);
@@ -2813,6 +2827,7 @@ html_code = (
     .replace("__COUNTRY_DATA__", country_records_json)
     .replace("__COUNTRY_CENTERS__", country_centers_json)
     .replace("__COUNTRY_COUNT__", str(country_count))
+    .replace("__GLOBAL_POPULATION_TOTAL__", str(global_population_total))
 )
 
 
