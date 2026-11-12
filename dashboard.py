@@ -1675,8 +1675,8 @@ html, body {
                         <div id="population" class="info-value">—</div>
                     </div>
                     <div class="info-cell">
-                        <div class="info-icon">🌐</div><div class="info-label">Primary Languages</div>
-                        <div id="languageCount" class="info-value">—</div>
+                        <div class="info-icon">🕊</div><div class="info-label">Primary Religion</div>
+                        <div id="primaryReligion" class="info-value">—</div>
                     </div>
                     <div class="info-cell">
                         <div class="info-icon">🧩</div><div class="info-label">People Groups</div>
@@ -2441,8 +2441,8 @@ function setCountryInfo(code) {
     document.getElementById("population").textContent =
         displayValue(country.population);
 
-    document.getElementById("languageCount").textContent =
-        displayValue(country.language_count);
+    document.getElementById("primaryReligion").textContent =
+        displayValue(country.religion_primary);
 
     document.getElementById("peopleGroups").textContent =
         displayValue(country.people_groups);
