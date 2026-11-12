@@ -335,6 +335,42 @@ if country_df.empty:
 
 
 # --------------------------------------------------
+# CALCULATE GLOBAL KPIs FROM THE COMPLETE CSV
+# --------------------------------------------------
+# These totals intentionally use all valid CSV country records, not only
+# countries that can be matched to the globe's GeoJSON boundaries.
+
+def numeric_series(column_name):
+    if column_name not in country_df.columns:
+        return pd.Series(0, index=country_df.index, dtype="float64")
+    return pd.to_numeric(
+        country_df[column_name].fillna("").astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("%", "", regex=False)
+        .str.strip(),
+        errors="coerce"
+    ).fillna(0)
+
+global_population_total = numeric_series("Population").sum()
+
+christianity_percent_series = numeric_series("PercentChristianity")
+global_christian_population = (
+    numeric_series("Population") * christianity_percent_series / 100
+).sum()
+
+global_christian_percentage = (
+    (global_christian_population / global_population_total) * 100
+    if global_population_total > 0 else 0
+)
+
+# Joshua Project's country-level people-group count is CntPeoples (Excel AA),
+# not JPScaleCtry (Excel A).
+global_people_groups_total = numeric_series("CntPeoples").sum()
+
+global_translation_needed_total = numeric_series("TranslationNeeded").sum()
+
+
+# --------------------------------------------------
 # LOAD GEOJSON
 # --------------------------------------------------
 
@@ -589,20 +625,6 @@ country_centers_json = json.dumps(
     country_centers,
     ensure_ascii=False
 ).replace("</", "<\\/")
-
-# Global population must include ALL CSV countries, not only GeoJSON matches.
-# Keep globe records restricted to matched countries for map rendering.
-all_population_column = next(
-    (col for col in ["Population", "PopulationTotal", "Population2024", "Population2025"]
-     if col in country_df.columns),
-    None
-)
-global_population_total = int(
-    pd.to_numeric(
-        country_df[all_population_column].astype(str).str.replace(",", "", regex=False),
-        errors="coerce"
-    ).fillna(0).sum()
-) if all_population_column else 0
 
 country_count = len(country_records)
 
@@ -1630,10 +1652,10 @@ html, body {
             <div id="globalOverview" class="global-overview">
                 <div class="info-title">GLOBAL OVERVIEW</div>
                 <div class="global-kpis">
-                    <div class="global-kpi"><div class="global-kpi-label">Population represented</div><div id="globalPopulation" class="global-kpi-value">—</div></div>
-                    <div class="global-kpi"><div class="global-kpi-label">Primary language counts*</div><div id="globalLanguages" class="global-kpi-value">—</div></div>
-                    <div class="global-kpi"><div class="global-kpi-label">People groups</div><div id="globalPeopleGroups" class="global-kpi-value">—</div></div>
-                    <div class="global-kpi"><div class="global-kpi-label">Groups needing translation</div><div id="globalTranslationNeed" class="global-kpi-value">—</div></div>
+                    <div class="global-kpi"><div class="global-kpi-label">Total Population</div><div id="globalPopulation" class="global-kpi-value">—</div></div>
+                    <div class="global-kpi"><div class="global-kpi-label">Christian Adherent Population</div><div id="globalChristianPercentage" class="global-kpi-value">—</div></div>
+                    <div class="global-kpi"><div class="global-kpi-label">Total People Groups</div><div id="globalPeopleGroups" class="global-kpi-value">—</div></div>
+                    <div class="global-kpi"><div class="global-kpi-label">Groups Needing Translation</div><div id="globalTranslationNeed" class="global-kpi-value">—</div></div>
                 </div>
                 <section class="status-chart-panel" aria-label="Global translation progress chart">
                     <div class="status-chart-title">Global Translation Progress</div>
@@ -1642,7 +1664,7 @@ html, body {
                     <div id="globalStatusChartLegend" class="status-chart-legend"></div>
                     <div id="globalStatusChartNote" class="chart-note"></div>
                 </section>
-                <div class="footer-note">*Language counts are summed from country-level records and may not represent unique languages worldwide.</div>
+                <div class="footer-note">Christian adherent percentage is population-weighted across all country records in the Joshua Project CSV.</div>
             </div>
 
             <div id="countryOverview" class="country-overview" hidden>
@@ -1991,15 +2013,20 @@ function formatMetric(value) {
 }
 
 function renderGlobalOverview() {
-    const populationSum = __GLOBAL_POPULATION_TOTAL__;
-    const languageSum = countries.reduce((sum, country) => sum + (parseMetric(country.language_count) || 0), 0);
-    const peopleGroupSum = countries.reduce((sum, country) => sum + (parseMetric(country.people_groups) || 0), 0);
-    const translationNeedSum = countries.reduce((sum, country) => sum + (parseMetric(country.translation_needed) || 0), 0);
+    // Values are calculated in Python from the complete CSV, so countries
+    // absent from the GeoJSON are still included in the global KPIs.
+    document.getElementById("globalPopulation").textContent =
+        formatMetric(__GLOBAL_POPULATION_TOTAL__);
 
-    document.getElementById("globalPopulation").textContent = formatMetric(populationSum);
-    document.getElementById("globalLanguages").textContent = formatMetric(languageSum);
-    document.getElementById("globalPeopleGroups").textContent = formatMetric(peopleGroupSum);
-    document.getElementById("globalTranslationNeed").textContent = formatMetric(translationNeedSum);
+    document.getElementById("globalChristianPercentage").textContent =
+        Number(__GLOBAL_CHRISTIAN_PERCENTAGE__).toFixed(2) + "%";
+
+    document.getElementById("globalPeopleGroups").textContent =
+        formatMetric(__GLOBAL_PEOPLE_GROUPS_TOTAL__);
+
+    document.getElementById("globalTranslationNeed").textContent =
+        formatMetric(__GLOBAL_TRANSLATION_NEEDED_TOTAL__);
+
     renderGlobalStatusChart();
 }
 
@@ -2827,7 +2854,10 @@ html_code = (
     .replace("__COUNTRY_DATA__", country_records_json)
     .replace("__COUNTRY_CENTERS__", country_centers_json)
     .replace("__COUNTRY_COUNT__", str(country_count))
-    .replace("__GLOBAL_POPULATION_TOTAL__", str(global_population_total))
+    .replace("__GLOBAL_POPULATION_TOTAL__", str(int(round(global_population_total))))
+    .replace("__GLOBAL_CHRISTIAN_PERCENTAGE__", str(global_christian_percentage))
+    .replace("__GLOBAL_PEOPLE_GROUPS_TOTAL__", str(int(round(global_people_groups_total))))
+    .replace("__GLOBAL_TRANSLATION_NEEDED_TOTAL__", str(int(round(global_translation_needed_total))))
 )
 
 
